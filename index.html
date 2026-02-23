@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Code → ITGlue Highlighter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0d0f14;
+    --surface:   #13161d;
+    --panel:     #1a1d27;
+    --border:    #252836;
+    --border-hi: #363a52;
+    --accent:    #7c6af7;
+    --green:     #5af78e;
+    --green-dim: #1e4a30;
+    --text:      #c8ccd8;
+    --text-dim:  #5a5f7a;
+    --text-muted:#3a3f55;
+
+    /* One Dark tokens */
+    --tok-keyword:  #c678dd;
+    --tok-function: #e5c07b;
+    --tok-variable: #e06c75;
+    --tok-string:   #98c379;
+    --tok-comment:  #7f848e;
+    --tok-type:     #56b6c2;
+    --tok-number:   #d19a66;
+    --tok-operator: #abb2bf;
+    --tok-param:    #61afef;
+    --tok-label:    #e5c07b;
+    --tok-preproc:  #c678dd;
+    --tok-escape:   #d19a66;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--surface);
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .logo-mark {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 600; color: #fff;
+    flex-shrink: 0; letter-spacing: -0.5px;
+  }
+  .header-text h1 { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; color: #e8eaf2; }
+  .header-text p  { font-size: 11px; color: var(--text-dim); font-weight: 500; margin-top: 1px; }
+
+  /* ── Language selector ── */
+  .lang-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+  .lang-label { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); margin-right: 6px; white-space: nowrap; }
+
+  .lang-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .lang-btn:hover { border-color: var(--border-hi); color: var(--text); background: var(--panel); }
+  .lang-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .lang-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+  /* ── Main layout ── */
+  .workspace {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .pane-header {
+    padding: 10px 18px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.9px; text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .pane-header .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .left-header { border-right: 1px solid var(--border); }
+  .pane-header .pane-actions { margin-left: auto; display: flex; gap: 6px; }
+
+  .pane { position: relative; overflow: hidden; }
+  .pane-left { border-right: 1px solid var(--border); }
+
+  textarea#input {
+    width: 100%; height: 100%; min-height: 420px;
+    background: var(--panel); color: #abb2bf;
+    border: none; outline: none; resize: none;
+    padding: 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; line-height: 1.65; tab-size: 4;
+    caret-color: var(--accent); letter-spacing: 0.2px;
+  }
+  textarea#input::placeholder { color: var(--text-muted); }
+  textarea#input:focus { background: #1c1f2e; }
+
+  #preview-wrap {
+    height: 100%; min-height: 420px;
+    overflow-y: auto; overflow-x: auto;
+    background: var(--panel); padding: 18px;
+  }
+
+  /* ── Output section ── */
+  #output-section {
+    grid-column: 1 / -1;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: none;
+  }
+  #output-section.visible { display: block; }
+
+  .output-header {
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.9px; text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  textarea#html-output {
+    width: 100%; height: 140px;
+    background: #0a0c10; color: #636d83;
+    border: none; outline: none; resize: vertical;
+    padding: 14px 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; line-height: 1.6;
+  }
+
+  /* ── Status bar ── */
+  .status-bar {
+    grid-column: 1 / -1;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 8px 18px;
+    display: flex; align-items: center; gap: 12px;
+    font-size: 11px; color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); transition: background 0.3s; }
+  .status-dot.active { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-bar .spacer { flex: 1; }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 12px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--panel);
+    color: var(--text); font-family: 'Syne', sans-serif;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.4px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .btn:hover { border-color: var(--border-hi); background: #21253a; color: #e8eaf2; }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #9183ff; border-color: #9183ff; color: #fff; }
+  .btn-success { background: var(--green-dim); border-color: #2a6644; color: var(--green); }
+  .btn-success:hover { background: #265540; }
+  .btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+  /* ── Highlight styles (One Dark) ── */
+  .hl-wrap { background: #282c34; border-radius: 4px; overflow: hidden; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.65; }
+  .hl-pre  { margin: 0; padding: 16px; overflow-x: auto; white-space: pre; color: var(--tok-operator); }
+
+  .t-kw   { color: var(--tok-keyword); }
+  .t-fn   { color: var(--tok-function); }
+  .t-var  { color: var(--tok-variable); }
+  .t-str  { color: var(--tok-string); }
+  .t-cmt  { color: var(--tok-comment); font-style: italic; }
+  .t-typ  { color: var(--tok-type); }
+  .t-num  { color: var(--tok-number); }
+  .t-par  { color: var(--tok-param); }
+  .t-pre  { color: var(--tok-preproc); }
+  .t-esc  { color: var(--tok-escape); }
+  .t-lbl  { color: var(--tok-label); }
+
+  /* ── Copy flash ── */
+  .copy-flash {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--green-dim); border: 1px solid #2a6644; color: var(--green);
+    padding: 10px 18px; border-radius: 8px;
+    font-size: 13px; font-weight: 600; font-family: 'Syne', sans-serif;
+    opacity: 0; transform: translateY(8px);
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none; z-index: 999;
+  }
+  .copy-flash.show { opacity: 1; transform: translateY(0); }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 3px; }
+
+  @media (max-width: 760px) {
+    .workspace { grid-template-columns: 1fr; }
+    .pane-left { border-right: none; border-bottom: 1px solid var(--border); }
+    textarea#input, #preview-wrap { min-height: 260px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">&lt;/&gt;</div>
+  <div class="header-text">
+    <h1>Code → ITGlue Highlighter</h1>
+    <p>Paste code · pick language · copy ITGlue-ready HTML</p>
+  </div>
+</header>
+
+<!-- Language selector -->
+<div class="lang-bar">
+  <span class="lang-label">Language</span>
+  <button class="lang-btn" data-lang="powershell" onclick="setLang('powershell')">
+    <span class="lang-dot" style="background:#2672be;"></span> PowerShell
+  </button>
+  <button class="lang-btn" data-lang="csharp" onclick="setLang('csharp')">
+    <span class="lang-dot" style="background:#9b4f96;"></span> C#
+  </button>
+  <button class="lang-btn" data-lang="c" onclick="setLang('c')">
+    <span class="lang-dot" style="background:#555599;"></span> C
+  </button>
+  <button class="lang-btn" data-lang="python" onclick="setLang('python')">
+    <span class="lang-dot" style="background:#3572a5;"></span> Python
+  </button>
+  <button class="lang-btn" data-lang="bash" onclick="setLang('bash')">
+    <span class="lang-dot" style="background:#89e051;"></span> Bash
+  </button>
+  <button class="lang-btn" data-lang="batch" onclick="setLang('batch')">
+    <span class="lang-dot" style="background:#c1f12e;"></span> CMD / Batch
+  </button>
+  <button class="lang-btn" data-lang="sql" onclick="setLang('sql')">
+    <span class="lang-dot" style="background:#e38c00;"></span> SQL
+  </button>
+  <button class="lang-btn" data-lang="json" onclick="setLang('json')">
+    <span class="lang-dot" style="background:#40a8c4;"></span> JSON
+  </button>
+  <button class="lang-btn" data-lang="xml" onclick="setLang('xml')">
+    <span class="lang-dot" style="background:#f1502f;"></span> XML / HTML
+  </button>
+</div>
+
+<div class="workspace">
+
+  <div class="pane-header left-header">
+    <div class="dot" style="background:#e06c75;"></div>
+    <span id="input-label">Input</span>
+    <div class="pane-actions">
+      <button class="btn" onclick="clearInput()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3l10 10M13 3L3 13"/></svg>
+        Clear
+      </button>
+    </div>
+  </div>
+
+  <div class="pane-header right-header">
+    <div class="dot" style="background:#98c379;"></div>
+    <span>Highlighted Preview</span>
+    <div class="pane-actions">
+      <button class="btn btn-primary" onclick="convertCode()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+        Convert
+      </button>
+    </div>
+  </div>
+
+  <div class="pane pane-left">
+    <textarea id="input" spellcheck="false" placeholder="# Paste your code here…"></textarea>
+  </div>
+
+  <div class="pane pane-right">
+    <div id="preview-wrap">
+      <div style="color:var(--text-muted); font-family:'JetBrains Mono',monospace; font-size:12px; padding:4px 0;">// Preview will appear here after conversion</div>
+    </div>
+  </div>
+
+  <div id="output-section">
+    <div class="output-header">
+      <div class="dot" style="background:#c678dd;"></div>
+      <span>HTML Output — paste into ITGlue HTML source editor</span>
+      <div class="pane-actions" style="margin-left:auto; display:flex; gap:6px;">
+        <button class="btn btn-success" onclick="copyHtml()">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 009.5 2h-6A1.5 1.5 0 002 3.5v6A1.5 1.5 0 003.5 11H5"/></svg>
+          Copy HTML
+        </button>
+        <button class="btn" onclick="downloadHtml()">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v9M4 7l4 4 4-4M2 13h12"/></svg>
+          Download
+        </button>
+      </div>
+    </div>
+    <textarea id="html-output" readonly spellcheck="false"></textarea>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-text">Select a language · paste code · click Convert</span>
+    <span class="spacer"></span>
+    <span id="line-count"></span>
+  </div>
+</div>
+
+<div class="copy-flash" id="copy-flash">✓ Copied to clipboard</div>
+
+<script>
+// =============================================================================
+// UTILITIES
+// =============================================================================
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+const CLASS_COLOR = {
+  kw:  '#c678dd', fn:  '#e5c07b', var: '#e06c75', str: '#98c379',
+  cmt: '#7f848e', typ: '#56b6c2', num: '#d19a66', par: '#61afef',
+  pre: '#c678dd', esc: '#d19a66', lbl: '#e5c07b', attr:'#e5c07b',
+};
+
+function tokensToPreviewHtml(tokens) {
+  return tokens.map(t => {
+    const s = escHtml(t.value);
+    if (!t.type) return s;
+    return `<span class="t-${t.type}">${s}</span>`;
+  }).join('');
+}
+
+function tokensToInlineHtml(tokens) {
+  return tokens.map(t => {
+    const s = escHtml(t.value);
+    if (!t.type) return s;
+    const c = CLASS_COLOR[t.type] || '';
+    let st = `color:${c};`;
+    if (t.type === 'cmt') st += 'font-style:italic;';
+    return `<span style="${st}">${s}</span>`;
+  }).join('');
+}
+
+function tok(type, value) { return { type, value }; }
+
+// =============================================================================
+// TOKENISERS
+// =============================================================================
+
+// ── PowerShell ────────────────────────────────────────────────────────────────
+function tokenizePS(code) {
+  const tokens = [];
+  let i = 0;
+  const r = () => code.slice(i);
+  const adv = n => { const s = code.slice(i, i+(n||1)); i+=(n||1); return s; };
+
+  const PS_KEYWORDS = new Set([
+    'function','param','begin','process','end','return','if','elseif','else',
+    'foreach','for','while','do','switch','break','continue','try','catch',
+    'finally','throw','class','enum','using','in','filter','exit',
+    'not','and','or','xor','is','isnot','as',
+  ]);
+  const CMDLET_VERBS = /^(?:Get|Set|New|Remove|Add|Clear|Copy|Enter|Exit|Find|Format|Group|Hide|Join|Lock|Move|Out|Pop|Push|Redo|Rename|Reset|Resize|Search|Select|Show|Skip|Split|Start|Stop|Submit|Suspend|Switch|Test|Trace|Undo|Unlock|Update|Use|Wait|Watch|Write|Read|Send|Receive|Connect|Disconnect|Register|Unregister|Enable|Disable|Import|Export|ConvertTo|ConvertFrom|Invoke|Measure|Compare|Debug|Grant|Revoke|Protect|Publish|Restore|Save|Sync|Mount|Dismount|Install|Uninstall|Request|Sort|Resolve|Assert|Confirm|Complete|Initialize|Optimize|Repair|Limit|Expand|Build|Deploy|Block|Unblock)-[A-Za-z][\w]*/i;
+
+  while (i < code.length) {
+    const rest = r();
+
+    if (rest.startsWith('<#')) {
+      const end = code.indexOf('#>', i+2);
+      const len = end === -1 ? code.length-i : end-i+2;
+      tokens.push(tok('cmt', adv(len))); continue;
+    }
+    if (rest[0] === '#') {
+      const nl = code.indexOf('\n', i);
+      tokens.push(tok('cmt', adv(nl===-1?code.length-i:nl-i))); continue;
+    }
+    const hm = rest.match(/^@(["'])([\s\S]*?)\1@/);
+    if (hm) { tokens.push(tok('str', adv(hm[0].length))); continue; }
+
+    if (rest[0] === '"') {
+      let s=adv();
+      while(i<code.length && rest[s.length]!=='"'){ if(code[i]==='`') s+=adv(2); else s+=adv(); }
+      if(code[i]==='"') s+=adv();
+      tokens.push(tok('str',s)); continue;
+    }
+    if (rest[0] === "'") {
+      let s=adv();
+      while(i<code.length && code[i]!=="'") s+=adv();
+      if(code[i]==="'") s+=adv();
+      tokens.push(tok('str',s)); continue;
+    }
+    if (rest[0] === '$') {
+      const m = rest.match(/^\$(\{[^}]*\}|[\w:?^]+)/);
+      if (m) {
+        const low = m[0].toLowerCase();
+        const type = (low==='$true'||low==='$false'||low==='$null') ? 'kw' : 'var';
+        tokens.push(tok(type, adv(m[0].length))); continue;
+      }
+    }
+    const typm = rest.match(/^\[[A-Za-z][\w.]*(,\s*[A-Za-z][\w.]*)*(?:\[\])?\]/);
+    if (typm) { tokens.push(tok('typ', adv(typm[0].length))); continue; }
+    const nm = rest.match(/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?(?![\w])/);
+    if (nm) { tokens.push(tok('num', adv(nm[0].length))); continue; }
+    const wm = rest.match(/^-?[A-Za-z_][\w-]*/);
+    if (wm) {
+      const w = wm[0];
+      if (w.startsWith('-') && /[A-Za-z]/.test(w[1])) { tokens.push(tok('par', adv(w.length))); continue; }
+      if (PS_KEYWORDS.has(w)) { tokens.push(tok('kw', adv(w.length))); continue; }
+      if (CMDLET_VERBS.test(w)) { tokens.push(tok('fn', adv(w.length))); continue; }
+      const before = code.slice(Math.max(0,i-2),i);
+      if (before.endsWith('::') || before.endsWith('.')) { tokens.push(tok('fn', adv(w.length))); continue; }
+      tokens.push(tok(null, adv(w.length))); continue;
+    }
+    tokens.push(tok(null, adv()));
+  }
+  return tokens;
+}
+
+// ── C / C++ ───────────────────────────────────────────────────────────────────
+function tokenizeC(code) {
+  const tokens = [];
+  let i = 0;
+  const r = () => code.slice(i);
+  const adv = n => { const s=code.slice(i,i+(n||1)); i+=(n||1); return s; };
+
+  const C_KW = new Set([
+    'auto','break','case','char','const','continue','default','do','double',
+    'else','enum','extern','float','for','goto','if','inline','int','long',
+    'register','restrict','return','short','signed','sizeof','static','struct',
+    'switch','typedef','union','unsigned','void','volatile','while','NULL',
+    // C++
+    'class','namespace','template','typename','public','private','protected',
+    'virtual','override','final','new','delete','this','true','false','nullptr',
+    'using','try','catch','throw','explicit','operator','friend','mutable',
+    'constexpr','decltype','noexcept','static_assert','thread_local',
+  ]);
+
+  while (i < code.length) {
+    const rest = r();
+
+    // Block comment
+    if (rest.startsWith('/*')) {
+      const end = code.indexOf('*/', i+2);
+      tokens.push(tok('cmt', adv(end===-1?code.length-i:end-i+2))); continue;
+    }
+    // Line comment
+    if (rest.startsWith('//')) {
+      const nl = code.indexOf('\n',i);
+      tokens.push(tok('cmt', adv(nl===-1?code.length-i:nl-i))); continue;
+    }
+    // Preprocessor
+    if (rest[0] === '#') {
+      const nl = code.indexOf('\n',i);
+      tokens.push(tok('pre', adv(nl===-1?code.length-i:nl-i))); continue;
+    }
+    // String
+    if (rest[0] === '"') {
+      let s=adv();
+      while(i<code.length && code[i]!=='"'){ if(code[i]==='\\') s+=adv(2); else s+=adv(); }
+      if(code[i]==='"') s+=adv();
+      tokens.push(tok('str',s)); continue;
+    }
+    // Char
+    if (rest[0] === "'") {
+      let s=adv();
+      while(i<code.length && code[i]!=="'"){ if(code[i]==='\\') s+=adv(2); else s+=adv(); }
+      if(code[i]==="'") s+=adv();
+      tokens.push(tok('str',s)); continue;
+    }
+    // Number
+    const nm = rest.match(/^(?:0x[0-9a-fA-F]+[uUlL]*|\d+\.?\d*(?:[eE][+-]?\d+)?[fFlLuU]*)/);
+    if (nm) { tokens.push(tok('num', adv(nm[0].length))); continue; }
+    // Word
+    const wm = rest.match(/^[A-Za-z_]\w*/);
+    if (wm) {
+      const w = wm[0];
+      if (C_KW.has(w)) { tokens.push(tok('kw', adv(w.length))); continue; }
+      // Function call: word followed by (
+      if (code[i+w.length] === '(') { tokens.push(tok('fn', adv(w.length))); continue; }
+      // ALL_CAPS = macro/constant
+      if (/^[A-Z_][A-Z0-9_]+$/.test(w) && w.length > 1) { tokens.push(tok('typ', adv(w.length))); continue; }
+      // Type-like (PascalCase or known type suffix)
+      if (/^[A-Z]/.test(w)) { tokens.push(tok('typ', adv(w.length))); continue; }
+      tokens.push(tok(null, adv(w.length))); continue;
+    }
+    tokens.push(tok(null, adv()));
+  }
+  return tokens;
+}
+
+// ── C# ────────────────────────────────────────────────────────────────────────
+function tokenizeCS(code) {
+  const tokens = [];
+  let i = 0;
+  const r = () => code.slice(i);
+  const adv = n => { const s=code.slice(i,i+(n||1)); i+=(n||1); return s; };
+
+  const CS_KW = new Set([
+    'abstract','as','base','bool','break','byte','case','catch','char','checked',
+    'class','const','continue','decimal','default','delegate','do','double','else',
+    'enum','event','explicit','extern','false','finally','fixed','float','for',
+    'foreach','goto','if','implicit','in','int','interface','internal','is','lock',
+    'long','namespace','new','null','object','operator','out','override','params',
+    'private','protected','public','readonly','ref','return','sbyte','sealed',
+    'short','sizeof','stackalloc','static','string','struct','switch','this',
+    'throw','true','try','typeof','uint','ulong','unchecked','unsafe','ushort',
+    'using','virtual','void','volatile','while','var','async','await','dynamic',
+    'record','init','with','global','file','required','scoped','nint','nuint',
+  ]);
+  const CS_ATTR = /^\[[A-Za-z][\w.]*(?:\([^)]*\))?\]/;
+
+  while (i < code.length) {
+    const rest = r();
+
+    if (rest.startsWith('/*')) {
+      const end = code.indexOf('*/', i+2);
+      tokens.push(tok('cmt', adv(end===-1?code.length-i:end-i+2))); continue;
+    }
+    if (rest.startsWith('//')) {
+      const nl = code.indexOf('\n',i);
+      tokens.push(tok('cmt', adv(nl===-1?code.length-i:nl-i))); continue;
+    }
+    // Verbatim string @"..."
+    if (rest.startsWith('@"')) {
+      let s=adv(2);
+      while(i<code.length){ if(code[i]==='"'&&code[i+1]==='"'){s+=adv(2);}else if(code[i]==='"'){s+=adv();break;}else{s+=adv();} }
+      tokens.push(tok('str',s)); continue;
+    }
+    // Interpolated string $"..."
+    if (rest.startsWith('$"')) {
+      let s=adv(2);
+      while(i<code.length && code[i]!=='"'){ if(code[i]==='\\') s+=adv(2); else s+=adv(); }
+      if(code[i]==='"') s+=adv();
+      tokens.push(tok('str',s)); continue;
+    }
+    if (rest[0]==='"') {
+      let s=adv();
+      while(i<code.length && code[i]!=='"'){ if(code[i]==='\\') s+=adv(2); else s+=adv(); }
+      if(code[i]==='"') s+=adv();
+      tokens.push(tok('str',s)); continue;
+    }
+    if (rest[0]==="'") {
+      let s=adv();
+      while(i<code.length && code[i]!=="'"){ if(code[i]==='\\') s+=adv(2); else s+=adv(); }
+      if(code[i]==="'") s+=adv();
+      tokens.push(tok('str',s)); continue;
+    }
+    // Attribute
+    const am = rest.match(CS_ATTR);
+    if (am) { tokens.push(tok('attr', adv(am[0].length))); continue; }
+    // Number
+    const nm = rest.match(/^(?:0x[0-9a-fA-F]+[uUlL]*|\d+\.?\d*(?:[eE][+-]?\d+)?[mMfFdDuUlL]*)/);
+    if (nm) { tokens.push(tok('num', adv(nm[0].length))); continue; }
+    // Word
+    const wm = rest.match(/^@?[A-Za-z_]\w*/);
+    if (wm) {
+      const w = wm[0];
+      if (CS_KW.has(w)) { tokens.push(tok('kw', adv(w.length))); continue; }
+      if (code[i+w.length]==='(') { tokens.push(tok('fn', adv(w.length))); continue; }
+      if (/^[A-Z]/.test(w)) { tokens.push(tok('typ', adv(w.length))); continue; }
+      tokens.push(tok(null, adv(w.length))); continue;
+    }
+    tokens.push(tok(null, adv()));
+  }
+  return tokens;
+}
+
+// ── Python ────────────────────────────────────────────────────────────────────
+function tokenizePython(code) {
+  const tokens = [];
+  let i = 0;
+  const r = () => code.slice(i);
+  const adv = n => { const s=code.slice(i,i+(n||1)); i+=(n||1); return s; };
+
+  const PY_KW = new Set([
+    'False','None','True','and','as','assert','async','await','break','class',
+    'continue','def','del','elif','else','except','finally','for','from',
+    'global','if','import','in','is','lambda','nonlocal','not','or','pass',
+    'raise','return','try','while','with','yield','print','range','len',
+    'type','isinstance','hasattr','getattr','setattr','super','property',
+    'staticmethod','classmethod','self','cls',
+  ]);
+  const PY_BUILTINS = new Set([
+    'abs','all','any','ascii','bin','bool','breakpoint','bytearray','bytes',
+    'callable','chr','compile','complex','copyright','credits','delattr',
+    'dict','dir','divmod','enumerate','eval','exec','exit','filter','float',
+    'format','frozenset','globals','hash','help','hex','id','input','int',
+    'iter','list','locals','map','max','memoryview','min','next','object',
+    'oct','open','ord','pow','print','quit','repr','reversed','round','set',
+    'setattr','slice','sorted','str','sum','tuple','vars','zip',
+  ]);
+
+  while (i < code.length) {
+    const rest = r();
+
+    // Triple-quoted strings
+    const tq = rest.match(/^(?:f|b|r|u|rb|br)?(?:"""[\s\S]*?"""|'''[\s\S]*?''')/i);
+    if (tq) { tokens.push(tok('str', adv(tq[0].length))); continue; }
+    // Comment
+    if (rest[0]==='#') {
+      const nl=code.indexOf('\n',i);
+      tokens.push(tok('cmt', adv(nl===-1?code.length-i:nl-i))); continue;
+    }
+    // Decorator
+    if (rest[0]==='@') {
+      const dm=rest.match(/^@[\w.]+/);
+      if (dm) { tokens.push(tok('attr', adv(dm[0].length))); continue; }
+    }
+    // f-string / b-string / r-string
+    const strm = rest.match(/^(?:f|b|r|u|rb|br)?["']/i);
+    if (strm) {
+      const q = rest[strm[0].length-1];
+      let s=adv(strm[0].length);
+      while(i<code.length && code[i]!==q){ if(code[i]==='\\') s+=adv(2); else s+=adv(); }
+      if(code[i]===q) s+=adv();
+      tokens.push(tok('str',s)); continue;
+    }
+    // Number
+    const nm=rest.match(/^(?:0x[0-9a-fA-F]+|0o[0-7]+|0b[01]+|\d+\.?\d*(?:[eE][+-]?\d+)?[jJ]?)/);
+    if (nm) { tokens.push(tok('num', adv(nm[0].length))); continue; }
+    // Word
+    const wm=rest.match(/^[A-Za-z_]\w*/);
+    if (wm) {
+      const w=wm[0];
+      if (PY_KW.has(w)) { tokens.push(tok('kw', adv(w.length))); continue; }
+      if (PY_BUILTINS.has(w)) { tokens.push(tok('fn', adv(w.length))); continue; }
+      if (code[i+w.length]==='(') { tokens.push(tok('fn', adv(w.length))); continue; }
+      if (/^[A-Z]/.test(w)) { tokens.push(tok('typ', adv(w.length))); continue; }
+      tokens.push(tok(null, adv(w.length))); continue;
+    }
+    tokens.push(tok(null, adv()));
+  }
+  return tokens;
+}
+
+// ── Bash ──────────────────────────────────────────────────────────────────────
+function tokenizeBash(code) {
+  const tokens = [];
+  let i = 0;
+  const r = () => code.slice(i);
+  const adv = n => { const s=code.slice(i,i+(n||1)); i+=(n||1); return s; };
+
+  const BASH_KW = new Set([
+    'if','then','else','elif','fi','for','do','done','while','until','case',
+    'esac','in','function','return','exit','break','continue','local','export',
+    'readonly','declare','typeset','unset','shift','true','false','select',
+    'time','coproc',
+  ]);
+  const BASH_BUILTINS = new Set([
+    'echo','printf','read','cd','pwd','ls','mkdir','rm','cp','mv','cat','grep',
+    'sed','awk','find','sort','uniq','wc','head','tail','cut','tr','chmod',
+    'chown','curl','wget','source','alias','set','unalias','test','exec',
+    'eval','getopts','mapfile','readarray','command','type','which','whereis',
+    'kill','wait','sleep','date','basename','dirname','realpath','expr',
+    'let','pushd','popd','trap','jobs','fg','bg','nohup','ssh','scp','rsync',
+    'tar','gzip','gunzip','zip','unzip','systemctl','service','apt','yum',
+    'sudo','su','id','whoami','hostname','uname','df','du','mount','umount',
+  ]);
+
+  while (i < code.length) {
+    const rest = r();
+
+    if (rest[0]==='#') {
+      const nl=code.indexOf('\n',i);
+      tokens.push(tok('cmt', adv(nl===-1?code.length-i:nl-i))); continue;
+    }
+    // Heredoc <<EOF ... EOF  (simplified)
+    const hd=rest.match(/^<<-?\s*(['"]?)(\w+)\1/);
+    if (hd) {
+      const marker=hd[2];
+      const end=code.indexOf('\n'+marker, i+hd[0].length);
+      const len=end===-1?code.length-i:end-i+marker.length+1;
+      tokens.push(tok('str', adv(len))); continue;
+    }
+    // Double-quoted string
+    if (rest[0]==='"') {
+      let s=adv();
+      while(i<code.length && code[i]!=='"'){ if(code[i]==='\\') s+=adv(2); else s+=adv(); }
+      if(code[i]==='"') s+=adv();
+      tokens.push(tok('str',s)); continue;
+    }
+    // Single-quoted string
+    if (rest[0]==="'") {
+      let s=adv();
+      while(i<code.length && code[i]!=="'") s+=adv();
+      if(code[i]==="'") s+=adv();
+      tokens.push(tok('str',s)); continue;
+    }
+    // Variable $VAR ${VAR} $( $((
+    if (rest[0]==='$') {
+      const m=rest.match(/^\$(?:\(\(|\(|\{[^}]*\}|[A-Za-z_]\w*|\d+|[@*#?$!-])/);
+      if (m) { tokens.push(tok('var', adv(m[0].length))); continue; }
+    }
+    // Number
+    const nm=rest.match(/^\d+(?:\.\d+)?/);
+    if (nm) { tokens.push(tok('num', adv(nm[0].length))); continue; }
+    // Word
+    const wm=rest.match(/^[A-Za-z_][\w-]*/);
+    if (wm) {
+      const w=wm[0];
+      if (BASH_KW.has(w)) { tokens.push(tok('kw', adv(w.length))); continue; }
+      if (BASH_BUILTINS.has(w)) { tokens.push(tok('fn', adv(w.length))); continue; }
+      // Assignment: word=
+      if (code[i+w.length]==='=') { tokens.push(tok('var', adv(w.length))); continue; }
+      tokens.push(tok(null, adv(w.length))); continue;
+    }
+    tokens.push(tok(null, adv()));
+  }
+  return tokens;
+}
+
+// ── CMD / Batch ───────────────────────────────────────────────────────────────
+function tokenizeBatch(code) {
+  const tokens = [];
+  let i = 0;
+  const r = () => code.slice(i);
+  const adv = n => { const s=code.slice(i,i+(n||1)); i+=(n||1); return s; };
+
+  const BATCH_CMDS = new Set([
+    'echo','set','if','else','for','goto','call','exit','pause','rem',
+    'cd','dir','del','copy','move','ren','rename','type','more','find',
+    'findstr','sort','xcopy','robocopy','mkdir','md','rmdir','rd','cls',
+    'color','title','prompt','path','pushd','popd','setlocal','endlocal',
+    'shift','choice','start','taskkill','tasklist','net','netsh','reg',
+    'sc','schtasks','icacls','attrib','format','label','subst','assoc',
+    'ftype','where','whoami','hostname','ipconfig','ping','tracert',
+    'nslookup','certutil','msiexec','wmic','powershell',
+  ]);
+
+  while (i < code.length) {
+    const rest = r();
+
+    // Comment: REM ... or :: ...
+    if (/^(?:rem\b|::)/i.test(rest)) {
+      const nl=code.indexOf('\n',i);
+      tokens.push(tok('cmt', adv(nl===-1?code.length-i:nl-i))); continue;
+    }
+    // Label :LABEL
+    if (rest[0]===':' && /^:[A-Za-z_]/.test(rest)) {
+      const m=rest.match(/^:[A-Za-z_][\w]*/);
+      tokens.push(tok('lbl', adv(m[0].length))); continue;
+    }
+    // Variable %VAR% or %~1 etc
+    if (rest[0]==='%') {
+      const m=rest.match(/^%(?:[~\d\*]|[A-Za-z_]\w*%?)/);
+      if (m) { tokens.push(tok('var', adv(m[0].length))); continue; }
+    }
+    // String (quoted)
+    if (rest[0]==='"') {
+      let s=adv();
+      while(i<code.length && code[i]!=='"') s+=adv();
+      if(code[i]==='"') s+=adv();
+      tokens.push(tok('str',s)); continue;
+    }
+    // Number
+    const nm=rest.match(/^\d+/);
+    if (nm) { tokens.push(tok('num', adv(nm[0].length))); continue; }
+    // Word
+    const wm=rest.match(/^[A-Za-z_][\w-]*/);
+    if (wm) {
+      const w=wm[0];
+      if (BATCH_CMDS.has(w.toLowerCase())) { tokens.push(tok('kw', adv(w.length))); continue; }
+      tokens.push(tok(null, adv(w.length))); continue;
+    }
+    tokens.push(tok(null, adv()));
+  }
+  return tokens;
+}
+
+// ── SQL ───────────────────────────────────────────────────────────────────────
+function tokenizeSQL(code) {
+  const tokens = [];
+  let i = 0;
+  const r = () => code.slice(i);
+  const adv = n => { const s=code.slice(i,i+(n||1)); i+=(n||1); return s; };
+
+  const SQL_KW = new Set([
+    'SELECT','FROM','WHERE','AND','OR','NOT','IN','BETWEEN','LIKE','IS','NULL',
+    'JOIN','LEFT','RIGHT','INNER','OUTER','FULL','CROSS','ON','USING',
+    'INSERT','INTO','VALUES','UPDATE','SET','DELETE','MERGE','TRUNCATE',
+    'CREATE','ALTER','DROP','TABLE','VIEW','INDEX','DATABASE','SCHEMA',
+    'PROCEDURE','FUNCTION','TRIGGER','SEQUENCE','SYNONYM','GRANT','REVOKE',
+    'BEGIN','END','COMMIT','ROLLBACK','TRANSACTION','SAVEPOINT',
+    'CASE','WHEN','THEN','ELSE','AS','DISTINCT','ALL','TOP','LIMIT',
+    'ORDER','BY','GROUP','HAVING','UNION','EXCEPT','INTERSECT',
+    'EXISTS','ANY','SOME','WITH','RECURSIVE','OVER','PARTITION',
+    'DECLARE','EXEC','EXECUTE','PRINT','USE','GO','IF','ELSE','WHILE',
+    'RETURN','OUTPUT','PRIMARY','KEY','FOREIGN','REFERENCES','UNIQUE',
+    'DEFAULT','CONSTRAINT','CHECK','IDENTITY','AUTO_INCREMENT',
+    'INT','INTEGER','BIGINT','SMALLINT','TINYINT','BIT','DECIMAL','NUMERIC',
+    'FLOAT','REAL','MONEY','CHAR','VARCHAR','NCHAR','NVARCHAR','TEXT',
+    'NTEXT','DATE','TIME','DATETIME','TIMESTAMP','BOOLEAN','BOOL',
+  ]);
+
+  while (i < code.length) {
+    const rest = r();
+
+    // Block comment
+    if (rest.startsWith('/*')) {
+      const end=code.indexOf('*/',i+2);
+      tokens.push(tok('cmt', adv(end===-1?code.length-i:end-i+2))); continue;
+    }
+    // Line comment
+    if (rest.startsWith('--')) {
+      const nl=code.indexOf('\n',i);
+      tokens.push(tok('cmt', adv(nl===-1?code.length-i:nl-i))); continue;
+    }
+    // String
+    if (rest[0]==="'") {
+      let s=adv();
+      while(i<code.length && code[i]!=="'"){ if(code[i]==='\\') s+=adv(2); else s+=adv(); }
+      if(code[i]==="'") s+=adv();
+      tokens.push(tok('str',s)); continue;
+    }
+    // Number
+    const nm=rest.match(/^\d+(?:\.\d+)?/);
+    if (nm) { tokens.push(tok('num', adv(nm[0].length))); continue; }
+    // @param
+    if (rest[0]==='@') {
+      const m=rest.match(/^@@?[A-Za-z_]\w*/);
+      if (m) { tokens.push(tok('var', adv(m[0].length))); continue; }
+    }
+    // Word
+    const wm=rest.match(/^[A-Za-z_]\w*/);
+    if (wm) {
+      const w=wm[0];
+      if (SQL_KW.has(w.toUpperCase())) { tokens.push(tok('kw', adv(w.length))); continue; }
+      // Function call
+      if (code[i+w.length]==='(') { tokens.push(tok('fn', adv(w.length))); continue; }
+      tokens.push(tok(null, adv(w.length))); continue;
+    }
+    tokens.push(tok(null, adv()));
+  }
+  return tokens;
+}
+
+// ── JSON ──────────────────────────────────────────────────────────────────────
+function tokenizeJSON(code) {
+  const tokens = [];
+  let i = 0;
+  const r = () => code.slice(i);
+  const adv = n => { const s=code.slice(i,i+(n||1)); i+=(n||1); return s; };
+
+  while (i < code.length) {
+    const rest = r();
+    // String
+    if (rest[0]==='"') {
+      let s=adv();
+      while(i<code.length && code[i]!=='"'){ if(code[i]==='\\') s+=adv(2); else s+=adv(); }
+      if(code[i]==='"') s+=adv();
+      // If followed by : it's a key
+      const afterWS = code.slice(i).match(/^\s*:/);
+      tokens.push(tok(afterWS?'fn':'str', s)); continue;
+    }
+    // Keywords
+    const km=rest.match(/^(?:true|false|null)/);
+    if (km) { tokens.push(tok('kw', adv(km[0].length))); continue; }
+    // Number
+    const nm=rest.match(/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/);
+    if (nm) { tokens.push(tok('num', adv(nm[0].length))); continue; }
+    tokens.push(tok(null, adv()));
+  }
+  return tokens;
+}
+
+// ── XML / HTML ────────────────────────────────────────────────────────────────
+function tokenizeXML(code) {
+  const tokens = [];
+  let i = 0;
+  const r = () => code.slice(i);
+  const adv = n => { const s=code.slice(i,i+(n||1)); i+=(n||1); return s; };
+
+  while (i < code.length) {
+    const rest = r();
+
+    // Comment <!-- ... -->
+    if (rest.startsWith('<!--')) {
+      const end=code.indexOf('-->',i+4);
+      tokens.push(tok('cmt', adv(end===-1?code.length-i:end-i+3))); continue;
+    }
+    // CDATA
+    if (rest.startsWith('<![CDATA[')) {
+      const end=code.indexOf(']]>',i+9);
+      tokens.push(tok('str', adv(end===-1?code.length-i:end-i+3))); continue;
+    }
+    // Tag
+    if (rest[0]==='<') {
+      let tag='';
+      let inStr=false; let strChar='';
+      tag+=adv(); // <
+      while(i<code.length){
+        if(!inStr && (code[i]==='"'||code[i]==="'")){inStr=true;strChar=code[i];tag+=adv();}
+        else if(inStr && code[i]===strChar){inStr=false;tag+=adv();}
+        else if(!inStr && code[i]==='>'){tag+=adv();break;}
+        else{tag+=adv();}
+      }
+      // Colour the tag with internal parsing
+      const parts = [];
+      let j=0;
+      // opening < or </
+      const openM=tag.match(/^<\/?/);
+      parts.push(tok('typ', openM[0]));
+      j+=openM[0].length;
+      // tag name
+      const tnM=tag.slice(j).match(/^[A-Za-z_:][\w:.-]*/);
+      if(tnM){parts.push(tok('fn',tnM[0]));j+=tnM[0].length;}
+      // rest: attrs
+      while(j<tag.length){
+        const sub=tag.slice(j);
+        // attribute name
+        const anM=sub.match(/^\s+[A-Za-z_:][\w:.-]*/);
+        if(anM){parts.push(tok('par',anM[0]));j+=anM[0].length;continue;}
+        // = "value"
+        const avM=sub.match(/^=(?:"[^"]*"|'[^']*')/);
+        if(avM){parts.push(tok('str',avM[0]));j+=avM[0].length;continue;}
+        // > or />
+        parts.push(tok('typ',tag[j]));j++;
+      }
+      parts.forEach(p=>tokens.push(p)); continue;
+    }
+    // String content between tags — just plain text, no special colour
+    const textM=rest.match(/^[^<]+/);
+    if(textM){tokens.push(tok(null,adv(textM[0].length)));continue;}
+    tokens.push(tok(null, adv()));
+  }
+  return tokens;
+}
+
+// =============================================================================
+// DISPATCH
+// =============================================================================
+const TOKENIZERS = {
+  powershell: tokenizePS,
+  c:          tokenizeC,
+  csharp:     tokenizeCS,
+  python:     tokenizePython,
+  bash:       tokenizeBash,
+  batch:      tokenizeBatch,
+  sql:        tokenizeSQL,
+  json:       tokenizeJSON,
+  xml:        tokenizeXML,
+};
+
+const PLACEHOLDERS = {
+  powershell: `function Get-ClientInfo {\n    param ([string]$ClientName)\n    $result = Invoke-RestMethod -Uri "https://api.example.com/$ClientName"\n    Write-Host "Found: $($result.Count) records" -ForegroundColor Cyan\n    return $result\n}`,
+  c:          `#include <stdio.h>\n#include <stdlib.h>\n\nint factorial(int n) {\n    if (n <= 1) return 1;\n    return n * factorial(n - 1);\n}\n\nint main(void) {\n    printf("5! = %d\\n", factorial(5));\n    return 0;\n}`,
+  csharp:     `using System;\nusing System.Collections.Generic;\n\npublic class ClientService\n{\n    private readonly string _apiUrl;\n\n    public ClientService(string apiUrl)\n    {\n        _apiUrl = apiUrl ?? throw new ArgumentNullException(nameof(apiUrl));\n    }\n\n    public async Task<List<Client>> GetClientsAsync()\n    {\n        // TODO: implement\n        return new List<Client>();\n    }\n}`,
+  python:     `import requests\nfrom typing import Optional\n\nclass InsightClient:\n    BASE_URL = "https://buy.insight.com/api"\n\n    def __init__(self, api_key: str):\n        self.api_key = api_key\n        self.session = requests.Session()\n\n    def search(self, query: str, page: int = 0) -> Optional[dict]:\n        """Search the product catalogue."""\n        params = {"q": query, "page": page}\n        response = self.session.get(f"{self.BASE_URL}/search", params=params)\n        response.raise_for_status()\n        return response.json()`,
+  bash:       `#!/bin/bash\nset -euo pipefail\n\nLOG_FILE="/var/log/deploy.log"\nAPP_DIR="/opt/myapp"\n\nlog() {\n    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"\n}\n\nif [[ ! -d "$APP_DIR" ]]; then\n    mkdir -p "$APP_DIR"\n    log "Created directory $APP_DIR"\nfi\n\ncd "$APP_DIR"\ngit pull origin main\nsystemctl restart myapp\nlog "Deployment complete"`,
+  batch:      `@echo off\nsetlocal enabledelayedexpansion\n\nset APP_NAME=MyService\nset LOG_DIR=C:\\Logs\n\nif not exist "%LOG_DIR%" mkdir "%LOG_DIR%"\n\necho Starting %APP_NAME%...\nnet start "%APP_NAME%" >nul 2>&1\n\nif %errorlevel% equ 0 (\n    echo Service started successfully.\n) else (\n    echo ERROR: Failed to start service.\n    exit /b 1\n)\n\n:END\necho Done.\npause`,
+  sql:        `-- Get all active clients with their latest invoice\nSELECT\n    c.ClientID,\n    c.ClientName,\n    c.Email,\n    MAX(i.InvoiceDate) AS LastInvoiceDate,\n    SUM(i.Amount)     AS TotalBilled\nFROM Clients c\nINNER JOIN Invoices i ON c.ClientID = i.ClientID\nWHERE c.IsActive = 1\n  AND i.InvoiceDate >= DATEADD(YEAR, -1, GETDATE())\nGROUP BY c.ClientID, c.ClientName, c.Email\nHAVING SUM(i.Amount) > 1000\nORDER BY TotalBilled DESC;`,
+  json:       `{\n  "client": {\n    "id": "CLT-00123",\n    "name": "Acme Corp",\n    "active": true,\n    "tier": 3,\n    "contacts": [\n      {\n        "name": "Jane Smith",\n        "email": "jane@acme.com",\n        "primary": true\n      }\n    ],\n    "metadata": {\n      "createdAt": "2024-01-15T09:30:00Z",\n      "tags": ["enterprise", "m365"]\n    }\n  }\n}`,
+  xml:        `<?xml version="1.0" encoding="UTF-8"?>\n<configuration>\n  <appSettings>\n    <add key="ApiUrl" value="https://api.example.com" />\n    <add key="Timeout" value="30" />\n  </appSettings>\n  <connectionStrings>\n    <add name="MainDB"\n         connectionString="Server=.;Database=MyDB;Integrated Security=True"\n         providerName="System.Data.SqlClient" />\n  </connectionStrings>\n</configuration>`,
+};
+
+// =============================================================================
+// UI STATE
+// =============================================================================
+let currentLang = null;
+let lastHtml = '';
+
+function setLang(lang) {
+  currentLang = lang;
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.lang === lang);
+  });
+  document.getElementById('input-label').textContent = lang.charAt(0).toUpperCase() + lang.slice(1) + ' Input';
+  document.getElementById('input').placeholder = PLACEHOLDERS[lang] || '// Paste your code here…';
+  setStatus(`Language set to ${lang} · paste code and click Convert`, false);
+  // Auto-convert if there's already content
+  if (document.getElementById('input').value.trim()) convertCode();
+}
+
+function convertCode() {
+  if (!currentLang) {
+    setStatus('⚠ Please select a language first.', false);
+    return;
+  }
+  const code = document.getElementById('input').value;
+  if (!code.trim()) { setStatus('Nothing to convert — paste some code first.', false); return; }
+
+  const tokens = TOKENIZERS[currentLang](code);
+  const previewInner = tokensToPreviewHtml(tokens);
+  const inlineInner  = tokensToInlineHtml(tokens);
+
+  document.getElementById('preview-wrap').innerHTML =
+    `<div class="hl-wrap"><pre class="hl-pre">${previewInner}</pre></div>`;
+
+  const snippet = `<div style="background:#282c34;border-radius:4px;overflow:hidden;"><pre style="margin:0;padding:16px;background:#282c34;font-family:Consolas,&quot;Courier New&quot;,monospace;font-size:13px;line-height:1.65;overflow-x:auto;color:#abb2bf;white-space:pre;">${inlineInner}</pre></div>`;
+
+  lastHtml = snippet;
+  document.getElementById('html-output').value = snippet;
+  document.getElementById('output-section').classList.add('visible');
+
+  const lines = code.split('\n').length;
+  setStatus(`Converted ${lines} line${lines!==1?'s':''} · ${currentLang}`, true);
+  document.getElementById('line-count').textContent = `${lines} lines`;
+}
+
+function copyHtml() {
+  if (!lastHtml) return;
+  navigator.clipboard.writeText(lastHtml).then(() => {
+    const f = document.getElementById('copy-flash');
+    f.classList.add('show');
+    setTimeout(() => f.classList.remove('show'), 2200);
+  });
+}
+
+function downloadHtml() {
+  if (!lastHtml) return;
+  const blob = new Blob([lastHtml], { type: 'text/html' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${currentLang}-highlighted.html`;
+  a.click();
+}
+
+function clearInput() {
+  document.getElementById('input').value = '';
+  document.getElementById('preview-wrap').innerHTML =
+    `<div style="color:var(--text-muted);font-family:'JetBrains Mono',monospace;font-size:12px;padding:4px 0;">// Preview will appear here after conversion</div>`;
+  document.getElementById('output-section').classList.remove('visible');
+  document.getElementById('html-output').value = '';
+  lastHtml = '';
+  setStatus('Ready · paste code and click Convert', false);
+  document.getElementById('line-count').textContent = '';
+}
+
+function setStatus(msg, ok) {
+  document.getElementById('status-text').textContent = msg;
+  document.getElementById('status-dot').classList.toggle('active', ok);
+}
+
+document.getElementById('input').addEventListener('keydown', e => {
+  if ((e.ctrlKey||e.metaKey) && e.key==='Enter') { e.preventDefault(); convertCode(); }
+});
+document.getElementById('input').addEventListener('input', () => {
+  const v = document.getElementById('input').value;
+  const lines = (v.match(/\n/g)||[]).length + 1;
+  document.getElementById('line-count').textContent = v.trim() ? `${lines} lines` : '';
+});
+
+// Select PowerShell by default
+setLang('powershell');
+</script>
+</body>
+</html>
